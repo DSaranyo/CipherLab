@@ -1,0 +1,173 @@
+import { SupportedHashAlgo, IntegrityStatus } from '../types';
+import { bufferToHex, HASH_ALGO_METADATA } from './crypto';
+
+export interface FileHashResult {
+  fileName: string;
+  fileSizeBytes: number;
+  mimeType: string;
+  algorithm: SupportedHashAlgo;
+  computedHash: string;
+  elapsedMs: number;
+  lastModified: number;
+}
+
+/**
+ * Format bytes into human-readable unit string.
+ */
+export function formatByteSize(bytes: number): string {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KiB', 'MiB', 'GiB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const formattedVal = parseFloat((bytes / Math.pow(k, i)).toFixed(2));
+  return `${formattedVal} ${sizes[i]}`;
+}
+
+/**
+ * Hash an entire File object using Web Crypto API.
+ * Guard against huge file allocations with a clear error boundary.
+ */
+export async function computeFileHash(
+  file: File,
+  algorithm: SupportedHashAlgo
+): Promise<FileHashResult> {
+  // Check file size limit for browser memory safety (e.g. 500 MiB)
+  const MAX_BROWSER_FILE_SIZE = 500 * 1024 * 1024; // 500 MB
+  if (file.size > MAX_BROWSER_FILE_SIZE) {
+    throw new Error(`File size (${formatByteSize(file.size)}) exceeds the recommended in-browser memory threshold of 500 MiB.`);
+  }
+
+  const startTime = performance.now();
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await window.crypto.subtle.digest(algorithm, buffer);
+  const elapsedMs = Math.max(0.01, performance.now() - startTime);
+
+  const hashBytes = new Uint8Array(hashBuffer);
+  const computedHash = bufferToHex(hashBytes);
+
+  return {
+    fileName: file.name,
+    fileSizeBytes: file.size,
+    mimeType: file.type || 'application/octet-stream',
+    algorithm,
+    computedHash,
+    elapsedMs: Number(elapsedMs.toFixed(2)),
+    lastModified: file.lastModified,
+  };
+}
+
+/**
+ * Validates a reference hash string against expected algorithm properties.
+ */
+export function validateReferenceHash(
+  reference: string,
+  algorithm: SupportedHashAlgo
+): {
+  isValid: boolean;
+  cleaned: string;
+  expectedLength: number;
+  actualLength: number;
+  error?: string;
+} {
+  const expectedLength = HASH_ALGO_METADATA[algorithm].hexLength;
+  const cleaned = reference.trim().toLowerCase().replace(/^0x/, '');
+
+  if (cleaned.length === 0) {
+    return {
+      isValid: false,
+      cleaned: '',
+      expectedLength,
+      actualLength: 0,
+      error: 'Reference hash is empty.',
+    };
+  }
+
+  if (cleaned.length !== expectedLength) {
+    return {
+      isValid: false,
+      cleaned,
+      expectedLength,
+      actualLength: cleaned.length,
+      error: `Length mismatch: ${algorithm} expects ${expectedLength} hexadecimal characters, but reference has ${cleaned.length}.`,
+    };
+  }
+
+  if (!/^[0-9a-f]+$/.test(cleaned)) {
+    return {
+      isValid: false,
+      cleaned,
+      expectedLength,
+      actualLength: cleaned.length,
+      error: 'Reference contains invalid non-hexadecimal characters.',
+    };
+  }
+
+  return {
+    isValid: true,
+    cleaned,
+    expectedLength,
+    actualLength: cleaned.length,
+  };
+}
+
+/**
+ * Determine integrity verification status.
+ */
+export function evaluateIntegrityStatus(
+  computedHash: string,
+  referenceHashInput: string,
+  algorithm: SupportedHashAlgo
+): {
+  status: IntegrityStatus;
+  statusLabel: string;
+  statusMessage: string;
+  cleanedReference: string;
+} {
+  if (!referenceHashInput || referenceHashInput.trim() === '') {
+    return {
+      status: 'AWAITING_REFERENCE',
+      statusLabel: 'AWAITING REFERENCE HASH',
+      statusMessage: 'Paste a reference checksum provided by the software vendor or file author to verify authenticity.',
+      cleanedReference: '',
+    };
+  }
+
+  const validation = validateReferenceHash(referenceHashInput, algorithm);
+  if (!validation.isValid) {
+    return {
+      status: 'INVALID_REFERENCE',
+      statusLabel: 'INVALID REFERENCE HASH',
+      statusMessage: validation.error || 'The reference string does not match the required hex format.',
+      cleanedReference: validation.cleaned,
+    };
+  }
+
+  const normalizedComputed = computedHash.trim().toLowerCase();
+  if (normalizedComputed === validation.cleaned) {
+    return {
+      status: 'MATCH',
+      statusLabel: 'INTEGRITY VERIFIED: MATCH',
+      statusMessage: 'The computed file digest exactly matches the reference hash. Byte-for-byte integrity is confirmed.',
+      cleanedReference: validation.cleaned,
+    };
+  } else {
+    return {
+      status: 'MISMATCH',
+      statusLabel: 'INTEGRITY ALERT: MISMATCH',
+      statusMessage: 'The computed file digest does not match the reference checksum. The file may be corrupted or altered.',
+      cleanedReference: validation.cleaned,
+    };
+  }
+}
+
+/**
+ * Formats standard Unix/GNU checksum line (e.g. `<hash>  <filename>`).
+ */
+export function formatChecksumFileContent(
+  hash: string,
+  fileName: string,
+  algorithm: SupportedHashAlgo
+): string {
+  const timestamp = new Date().toISOString();
+  return `# Checksum generated by CIPHERLAB Tactical Workstation\n# Algorithm: ${algorithm}\n# Generated: ${timestamp}\n${hash.toLowerCase()}  ${fileName}\n`;
+}

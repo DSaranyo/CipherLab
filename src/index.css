@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-primary: #080B0A;
+    --bg-secondary: #0D1210;
+    --bg-panel: #111815;
+    --bg-elevated: #17201B;
+    --tactical-green: #A3B18A;
+    --muted-olive: #667653;
+    --phosphor-green: #B7F397;
+    --amber-warn: #E5AE54;
+    --crit-red: #E05D5D;
+    --text-primary: #E4E9E3;
+    --text-secondary: #8A968D;
+    --border-color: #28342D;
+  }
+
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  /* Monospace fonts for cryptographic data */
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+    font-feature-settings: "calt" 1, "tnum" 1;
+  }
+}
+
+/* Subtle tactical tactical grid background */
+.tactical-grid {
+  background-size: 24px 24px;
+  background-image: 
+    linear-gradient(to right, rgba(40, 52, 45, 0.25) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(40, 52, 45, 0.25) 1px, transparent 1px);
+}
+
+.tactical-border {
+  border: 1px solid #28342D;
+}
+
+/* Custom Tactical Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0D1210;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #28342D;
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #667653;
+}

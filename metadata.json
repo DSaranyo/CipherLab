@@ -1,0 +1,6 @@
+{
+  "name": "CipherLab - Tactical Cryptographic Workstation",
+  "description": "Tactical browser-side cryptographic operations workstation for hashing, data encoding, secure randomness generation, and file integrity verification.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
